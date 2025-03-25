@@ -106,6 +106,20 @@
             >
               <i class="fas fa-search"></i>
             </button>
+            <button
+              class="action-button"
+              onclick="rotate_pages(-90)"
+              title="Rotate Left"
+            >
+              <i class="fas fa-undo"></i>
+            </button>
+            <button
+              class="action-button"
+              onclick="rotate_pages(90)"
+              title="Rotate Right"
+            >
+              <i class="fas fa-redo"></i>
+            </button>
             <div class="zoom-control">
               <button class="zoom-button" onclick="zoom_out()" title="Zoom Out">
                 <i class="fas fa-minus"></i>
@@ -179,19 +193,6 @@
     />
 
     <script>
-      function openDocumentFromFile(file) {
-        if (file) {
-          document.getElementById("message").style.display = "flex";
-          document.getElementById("pages").innerHTML = "";
-          document.getElementById("message").innerHTML = `
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <h2>Loading Document...</h2>
-                    <p>Please wait while we load "${file.name}".</p>
-                `;
-          open_document_from_file(file);
-        }
-      }
-
       // Toggle dropdown menus
       document.querySelectorAll(".dropdown-toggle").forEach((toggle) => {
         toggle.addEventListener("click", function (e) {
@@ -215,6 +216,13 @@
       document.addEventListener("DOMContentLoaded", function () {
         // Set initial zoom level display to 100%
         document.getElementById("zoom-level").textContent = "100%";
+
+        // Check for URL parameter and load PDF if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const pdfUrl = urlParams.get("url");
+        if (pdfUrl) {
+          open_document_from_url(pdfUrl);
+        }
       });
     </script>
     <script src="main.js"></script>

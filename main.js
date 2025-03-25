@@ -1,16 +1,33 @@
 "use strict";
 
+/**
+ * Removes an element from an array at the specified index by shifting all subsequent elements.
+ * @param {Array} array - The array to modify
+ * @param {number} index - The index of the element to remove
+ */
 function array_remove(array, index) {
   let n = array.length;
   for (let i = index + 1; i < n; ++i) array[i - 1] = array[i];
   array.length = n - 1;
 }
 
+/**
+ * Inserts an item into an array at the specified index by shifting all subsequent elements.
+ * @param {Array} array - The array to modify
+ * @param {number} index - The index at which to insert the item
+ * @param {*} item - The item to insert
+ */
 function array_insert(array, index, item) {
   for (let i = array.length; i > index; --i) array[i] = array[i - 1];
   array[index] = item;
 }
 
+/**
+ * Checks if a sorted set (array) contains a specific item using binary search.
+ * @param {Array} set - The sorted array to search
+ * @param {*} item - The item to search for
+ * @returns {boolean} True if the item exists in the set, false otherwise
+ */
 function set_has(set, item) {
   let a = 0;
   let b = set.length - 1;
@@ -24,6 +41,11 @@ function set_has(set, item) {
   return false;
 }
 
+/**
+ * Adds an item to a sorted set (array) while maintaining sort order.
+ * @param {Array} set - The sorted array to modify
+ * @param {*} item - The item to add
+ */
 function set_add(set, item) {
   let a = 0;
   let b = set.length - 1;
@@ -37,6 +59,11 @@ function set_add(set, item) {
   array_insert(set, a, item);
 }
 
+/**
+ * Removes an item from a sorted set (array) while maintaining sort order.
+ * @param {Array} set - The sorted array to modify
+ * @param {*} item - The item to remove
+ */
 function set_delete(set, item) {
   let a = 0;
   let b = set.length - 1;
@@ -54,16 +81,32 @@ function set_delete(set, item) {
 
 // LOADING AND ERROR MESSAGES
 
+/**
+ * Displays a message to the user in the message element.
+ * @param {string} msg - The message to display
+ */
 function show_message(msg) {
-  document.getElementById("message").textContent = msg;
+  const container = document.getElementById("message");
+  //incase the message container was hidden
+  container.style.display = "block";
+  container.textContent = msg;
 }
 
+/**
+ * Clears any displayed message.
+ */
 function clear_message() {
-  document.getElementById("message").textContent = "";
+  const container = document.getElementById("message");
+  container.textContent = "";
+  container.style.display = "none";
 }
 
 // MENU BAR
 
+/**
+ * Closes all menu details elements except for the specified one.
+ * @param {HTMLElement|null} self - The menu to keep open, or null to close all menus
+ */
 function close_all_menus(self) {
   for (let node of document.querySelectorAll("header > details"))
     if (node !== self) node.removeAttribute("open");
@@ -99,6 +142,11 @@ window.addEventListener("blur", function () {
 });
 
 // BACKGROUND WORKER
+
+/**
+ * Web Worker for handling PDF processing operations in a separate thread.
+ * @type {Worker}
+ */
 const worker = new Worker("./worker.js", {
   type: "module",
 });
@@ -106,6 +154,11 @@ const worker = new Worker("./worker.js", {
 worker._promise_id = 1;
 worker._promise_map = new Map();
 
+/**
+ * Creates a wrapper function that communicates with the worker via promises.
+ * @param {string} name - The name of the worker method to call
+ * @returns {Function} A function that returns a promise resolving to the worker's response
+ */
 worker.wrap = function (name) {
   return function (...args) {
     return new Promise(function (resolve, reject) {
@@ -118,6 +171,10 @@ worker.wrap = function (name) {
   };
 };
 
+/**
+ * Handles messages received from the worker.
+ * @param {MessageEvent} event - The message event from the worker
+ */
 worker.onmessage = function (event) {
   let [type, id, result] = event.data;
   let error;
@@ -150,7 +207,18 @@ worker.onmessage = function (event) {
 
 // PAGE VIEW
 
+/**
+ * Represents a single page view in the PDF document.
+ * Handles rendering, text, links, and search highlighting.
+ */
 class PageView {
+  /**
+   * Creates a new PageView instance.
+   * @param {number} doc - The document handle
+   * @param {number} pageNumber - The 0-based page number
+   * @param {Object} defaultSize - The default page size {width, height}
+   * @param {number} zoom - The zoom level in DPI
+   */
   constructor(doc, pageNumber, defaultSize, zoom) {
     this.doc = doc;
     this.pageNumber = pageNumber; // 0-based
@@ -191,7 +259,10 @@ class PageView {
     this._updateSize();
   }
 
-  // Update page element size for current zoom level.
+  /**
+   * Updates the page element size based on the current zoom level.
+   * @private
+   */
   _updateSize() {
     // We use the `foo | 0` notation to round down floating point numbers to integers.
     // This matches the conversion done in `mupdf.js` when `Pixmap.withBbox`
@@ -206,6 +277,10 @@ class PageView {
       (((this.size.height * this.zoom) / 72) | 0) + "px";
   }
 
+  /**
+   * Sets the zoom level for this page.
+   * @param {number} zoom - The new zoom level in DPI
+   */
   setZoom(zoom) {
     if (this.zoom !== zoom) {
       this.zoom = zoom;
@@ -213,10 +288,19 @@ class PageView {
     }
   }
 
+  /**
+   * Sets the search term for this page.
+   * @param {string|null} needle - The search term or null to clear search
+   */
   setSearch(needle) {
     if (this.needle !== needle) this.needle = needle;
   }
 
+  /**
+   * Loads the page data (size, text, links) from the worker.
+   * @private
+   * @returns {Promise} A promise that resolves when the page data is loaded
+   */
   async _load() {
     console.log("LOADING", this.pageNumber);
 
@@ -227,6 +311,11 @@ class PageView {
     this._updateSize();
   }
 
+  /**
+   * Loads search results for the current search term.
+   * @private
+   * @returns {Promise} A promise that resolves when search results are loaded
+   */
   async _loadSearch() {
     if (this.loadNeedle !== this.needle) {
       this.loadNeedle = this.needle;
@@ -240,6 +329,11 @@ class PageView {
     }
   }
 
+  /**
+   * Shows the page by loading data and rendering content as needed.
+   * @private
+   * @returns {Promise} A promise that resolves when the page is ready to display
+   */
   async _show() {
     if (!this.loadPromise) this.loadPromise = this._load();
     await this.loadPromise;
@@ -262,6 +356,11 @@ class PageView {
       this._showSearch();
   }
 
+  /**
+   * Renders the page image at the current zoom level.
+   * @private
+   * @returns {Promise} A promise that resolves when rendering is complete
+   */
   async _render() {
     // Remember zoom value when we start rendering.
     let zoom = this.zoom;
@@ -299,12 +398,15 @@ class PageView {
       this.canvasNode.height = imageData.height;
       this.canvasCtx.putImageData(imageData, 0, 0);
     } else {
-      // Uh-oh. This render is already stale. Try again!
       console.log("STALE IMAGE", this.pageNumber);
       if (set_has(page_visible, this.pageNumber)) this._render();
     }
   }
 
+  /**
+   * Creates HTML elements for text content with proper positioning.
+   * @private
+   */
   _showText() {
     this.textNode.zoom = this.zoom;
     this.textNode.replaceChildren();
@@ -346,6 +448,10 @@ class PageView {
     }
   }
 
+  /**
+   * Creates HTML elements for links with proper positioning.
+   * @private
+   */
   _showLinks() {
     this.linkNode.zoom = this.zoom;
     this.linkNode.replaceChildren();
@@ -362,6 +468,10 @@ class PageView {
     }
   }
 
+  /**
+   * Creates HTML elements for search results with proper highlighting.
+   * @private
+   */
   _showSearch() {
     this.showNeedle = this.needle;
     this.searchNode.zoom = this.zoom;
@@ -383,15 +493,35 @@ class PageView {
 
 // DOCUMENT VIEW
 
+/**
+ * The handle to the current document.
+ * @type {number}
+ */
 var current_doc = 0;
+
+/**
+ * The current zoom level in DPI.
+ * @type {number}
+ */
 var current_zoom = 96;
 
-var page_list = null; // all pages in document
+/**
+ * Array of all page views in the document.
+ * @type {PageView[]|null}
+ */
+var page_list = null;
 
-// Track page visibility as the user scrolls through the document.
-// When a page comes near the viewport, we add it to the list of
-// "visible" pages and queue up rendering it.
+/**
+ * Tracks which pages are currently visible or near the viewport.
+ * Used to prioritize rendering of visible pages.
+ * @type {number[]}
+ */
 var page_visible = [];
+
+/**
+ * Intersection Observer that tracks which pages are visible in the viewport.
+ * @type {IntersectionObserver}
+ */
 var page_observer = new IntersectionObserver(
   function (entries) {
     for (let entry of entries) {
@@ -409,13 +539,23 @@ var page_observer = new IntersectionObserver(
   }
 );
 
-// Timer that waits until things settle before kicking off rendering.
+/**
+ * Timer ID for the update view debounce.
+ * @type {number}
+ */
 var update_view_timer = 0;
+
+/**
+ * Queues an update of the view with debouncing.
+ */
 function queue_update_view() {
   if (update_view_timer) clearTimeout(update_view_timer);
   update_view_timer = setTimeout(update_view, 50);
 }
 
+/**
+ * Updates the view by showing all visible pages.
+ */
 function update_view() {
   if (update_view_timer) clearTimeout(update_view_timer);
   update_view_timer = 0;
@@ -423,6 +563,10 @@ function update_view() {
   for (let i of page_visible) page_list[i]._show();
 }
 
+/**
+ * Finds the page that is most visible in the viewport.
+ * @returns {number} The page number of the most visible page
+ */
 function find_visible_page() {
   let panel = document.getElementById("page-panel").getBoundingClientRect();
   let panel_mid = (panel.top + panel.bottom) / 2;
@@ -433,18 +577,26 @@ function find_visible_page() {
   return page_visible[0];
 }
 
+/**
+ * Increases the zoom level.
+ */
 function zoom_in() {
   const zoom = Math.min(current_zoom + 12, 384);
   zoom_to(zoom);
-  document.getElementById("zoom-level").textContent = zoom + "%";
 }
 
+/**
+ * Decreases the zoom level.
+ */
 function zoom_out() {
   const zoom = Math.max(current_zoom - 12, 48);
   zoom_to(zoom);
-  document.getElementById("zoom-level").textContent = zoom + "%";
 }
 
+/**
+ * Sets the zoom level to a specific value.
+ * @param {number} new_zoom - The new zoom level in DPI
+ */
 function zoom_to(new_zoom) {
   if (current_zoom === new_zoom) return;
   current_zoom = new_zoom;
@@ -456,12 +608,15 @@ function zoom_to(new_zoom) {
   for (let page of page_list) page.setZoom(current_zoom);
 
   page_list[p].rootNode.scrollIntoView();
-
+  document.getElementById("zoom-level").textContent = new_zoom + "%";
   queue_update_view();
 }
 
 // KEY BINDINGS & MOUSE WHEEL ZOOM
 
+/**
+ * Handles mouse wheel events for zooming.
+ */
 window.addEventListener(
   "wheel",
   function (event) {
@@ -476,6 +631,9 @@ window.addEventListener(
   { passive: false }
 );
 
+/**
+ * Handles keyboard shortcuts.
+ */
 window.addEventListener("keydown", function (event) {
   // Intercept and override some keyboard shortcuts.
   // We must override the Ctl-PLUS and Ctl-MINUS shortcuts that change browser zoom.
@@ -523,6 +681,9 @@ window.addEventListener("keydown", function (event) {
   }
 });
 
+/**
+ * Toggles fullscreen mode.
+ */
 function toggle_fullscreen() {
   // Safari on iPhone doesn't support Fullscreen
   if (typeof document.documentElement.requestFullscreen !== "function") return;
@@ -532,17 +693,56 @@ function toggle_fullscreen() {
 
 // SEARCH
 
+/**
+ * Reference to the search panel element.
+ * @type {HTMLElement}
+ */
 let search_panel = document.getElementById("search-panel");
+
+/**
+ * Reference to the search status element.
+ * @type {HTMLElement}
+ */
 let search_status = document.getElementById("search-status");
+
+/**
+ * Reference to the search input element.
+ * @type {HTMLInputElement}
+ */
 let search_input = document.getElementById("search-input");
 
+/**
+ * The current search term.
+ * @type {string}
+ */
 var current_search_needle = "";
+
+/**
+ * The current page being searched.
+ * @type {number}
+ */
 var current_search_page = 0;
 
+/**
+ * Handles search input changes.
+ */
 search_input.onchange = function (event) {
   run_search(event.shiftKey ? -1 : 1, 0);
 };
 
+/**
+ * Rotates pages in the document.
+ * @param {number} rotation - The rotation angle in degrees
+ */
+function rotate_pages(rotation) {
+  for (const page of page_list) {
+    console.log(page);
+  }
+}
+
+/**
+ * Shows the search panel.
+ */
 function show_search_panel() {
   if (!page_list) return;
   search_panel.style.display = "";
@@ -550,12 +750,19 @@ function show_search_panel() {
   search_input.select();
 }
 
+/**
+ * Hides the search panel and clears the search.
+ */
 function hide_search_panel() {
   search_panel.style.display = "none";
   search_input.value = "";
   set_search_needle("");
 }
 
+/**
+ * Sets the search term and updates all pages.
+ * @param {string} needle - The search term
+ */
 function set_search_needle(needle) {
   search_status.textContent = "";
   current_search_needle = needle;
@@ -567,6 +774,12 @@ function set_search_needle(needle) {
   queue_update_view();
 }
 
+/**
+ * Runs a search through the document.
+ * @param {number} direction - The direction to search (1 for forward, -1 for backward)
+ * @param {number} step - Whether to start from the next page (1) or current page (0)
+ * @returns {Promise} A promise that resolves when the search is complete
+ */
 async function run_search(direction, step) {
   // start search from visible page
   set_search_needle(search_input.value);
@@ -605,6 +818,11 @@ async function run_search(direction, step) {
 
 // OUTLINE
 
+/**
+ * Builds the document outline (table of contents) HTML structure.
+ * @param {HTMLElement} parent - The parent element to append to
+ * @param {Array} outline - The outline data
+ */
 function build_outline(parent, outline) {
   for (let item of outline) {
     let node = document.createElement("li");
@@ -621,23 +839,46 @@ function build_outline(parent, outline) {
   }
 }
 
+/**
+ * Toggles the outline panel visibility.
+ */
 function toggle_outline_panel() {
   if (document.getElementById("outline-panel").style.display === "none")
     show_outline_panel();
   else hide_outline_panel();
 }
 
+/**
+ * Shows the outline panel.
+ */
 function show_outline_panel() {
+  console.warn("Called on render now!");
   if (!page_list) return;
-  document.getElementById("outline-panel").style.display = "block";
+  const parent = document.getElementById("outline-panel");
+  parent.style.display = "block";
+  //Delaying the class removal to avoid a flash and facilitate the css transition.
+  setTimeout(() => {
+    parent.classList.remove("hidden");
+  }, 0);
 }
 
+/**
+ * Hides the outline panel.
+ */
 function hide_outline_panel() {
-  document.getElementById("outline-panel").style.display = "none";
+  console.warn("called for some reason!");
+  const parent = document.getElementById("outline-panel");
+  parent.classList.add("hidden");
+  parent.style.display = "none";
+  // setTimeout(() => {
+  // }, 250); //same as the css transition duration.
 }
 
 // DOCUMENT LOADING
 
+/**
+ * Closes the current document and cleans up resources.
+ */
 function close_document() {
   clear_message();
   hide_outline_panel();
@@ -655,6 +896,13 @@ function close_document() {
   page_list = null;
 }
 
+/**
+ * Opens a document from an ArrayBuffer.
+ * @param {ArrayBuffer} buffer - The document data
+ * @param {string} magic - The file type magic (e.g., "application/pdf")
+ * @param {string} title - The document title
+ * @returns {Promise} A promise that resolves when the document is loaded
+ */
 async function open_document_from_buffer(buffer, magic, title) {
   current_doc = await worker.openDocumentFromBuffer(buffer, magic);
 
@@ -688,6 +936,11 @@ async function open_document_from_buffer(buffer, magic, title) {
   current_search_page = 0;
 }
 
+/**
+ * Opens a document from a URL.
+ * @param {string} path - The URL to fetch the document from
+ * @returns {Promise} A promise that resolves when the document is loaded
+ */
 async function open_document_from_url(path) {
   close_document();
   try {
@@ -701,6 +954,11 @@ async function open_document_from_url(path) {
   }
 }
 
+/**
+ * Opens a document from a File object.
+ * @param {File} file - The file object containing the document data
+ * @returns {Promise} A promise that resolves when the document is loaded
+ */
 async function open_document_from_file(file) {
   close_document();
   try {
@@ -711,12 +969,17 @@ async function open_document_from_file(file) {
       file.name,
       file.name
     );
+    document.getElementById("message").style.display = "none";
   } catch (error) {
     show_message(error.name + ": " + error.message);
     console.error(error);
   }
 }
 
+/**
+ * Main entry point for the application.
+ * Initializes the viewer and loads a document if specified in URL parameters.
+ */
 function main() {
   clear_message();
   let params = new URLSearchParams(window.location.search);
