@@ -1,5 +1,7 @@
 "use strict";
 
+// watermark configuration
+
 /**
  * Removes an element from an array at the specified index by shifting all subsequent elements.
  * @param {Array} array - The array to modify
@@ -223,6 +225,7 @@ class PageView {
     this.doc = doc;
     this.pageNumber = pageNumber; // 0-based
     this.size = defaultSize;
+    this.rotation = 0; // Track rotation angle (0, 90, 180, 270)
 
     this.loadPromise = false;
     this.drawPromise = false;
@@ -260,21 +263,23 @@ class PageView {
   }
 
   /**
-   * Updates the page element size based on the current zoom level.
+   * Updates the page element size based on the current zoom level and rotation.
    * @private
    */
   _updateSize() {
     // We use the `foo | 0` notation to round down floating point numbers to integers.
     // This matches the conversion done in `mupdf.js` when `Pixmap.withBbox`
     // calls `libmupdf._wasm_new_pixmap_with_bbox`.
-    this.rootNode.style.width =
-      (((this.size.width * this.zoom) / 72) | 0) + "px";
-    this.rootNode.style.height =
-      (((this.size.height * this.zoom) / 72) | 0) + "px";
-    this.canvasNode.style.width =
-      (((this.size.width * this.zoom) / 72) | 0) + "px";
-    this.canvasNode.style.height =
-      (((this.size.height * this.zoom) / 72) | 0) + "px";
+    
+    // For 90 and 270 degree rotations, swap width and height
+    const isRotated = this.rotation === 90 || this.rotation === 270;
+    const width = isRotated ? this.size.height : this.size.width;
+    const height = isRotated ? this.size.width : this.size.height;
+    
+    this.rootNode.style.width = (((width * this.zoom) / 72) | 0) + "px";
+    this.rootNode.style.height = (((height * this.zoom) / 72) | 0) + "px";
+    this.canvasNode.style.width = (((width * this.zoom) / 72) | 0) + "px";
+    this.canvasNode.style.height = (((height * this.zoom) / 72) | 0) + "px";
   }
 
   /**
@@ -285,6 +290,30 @@ class PageView {
     if (this.zoom !== zoom) {
       this.zoom = zoom;
       this._updateSize();
+    }
+  }
+
+  /**
+   * Sets the rotation angle for this page.
+   * @param {number} angle - The rotation angle in degrees (0, 90, 180, 270)
+   */
+  setRotation(angle) {
+    // Normalize angle to 0, 90, 180, or 270
+    angle = ((angle % 360) + 360) % 360;
+    if (angle % 90 !== 0) {
+      angle = Math.round(angle / 90) * 90;
+    }
+    
+    if (this.rotation !== angle) {
+      this.rotation = angle;
+      // Force re-render with new rotation
+      this.canvasNode.zoom = null;
+      // Update size for rotated dimensions if needed
+      this._updateSize();
+      // If page is visible, trigger a render
+      if (set_has(page_visible, this.pageNumber)) {
+        this._render();
+      }
     }
   }
 
@@ -335,6 +364,7 @@ class PageView {
    * @returns {Promise} A promise that resolves when the page is ready to display
    */
   async _show() {
+    
     if (!this.loadPromise) this.loadPromise = this._load();
     await this.loadPromise;
 
@@ -383,7 +413,8 @@ class PageView {
     this.drawPromise = worker.drawPageAsPixmap(
       this.doc,
       this.pageNumber,
-      zoom * devicePixelRatio
+      zoom * devicePixelRatio,
+      this.rotation
     );
 
     let imageData = await this.drawPromise;
@@ -397,6 +428,16 @@ class PageView {
       this.canvasNode.width = imageData.width;
       this.canvasNode.height = imageData.height;
       this.canvasCtx.putImageData(imageData, 0, 0);
+      
+      // Draw watermark directly on the canvas
+      // Import the drawWatermark function dynamically to avoid circular dependencies
+      const { drawWatermark } = await import('./watermark.js');
+      drawWatermark(
+        this.canvasCtx, 
+        this.canvasNode.width, 
+        this.canvasNode.height, 
+        zoom / 72
+      );
     } else {
       console.log("STALE IMAGE", this.pageNumber);
       if (set_has(page_visible, this.pageNumber)) this._render();
@@ -732,12 +773,27 @@ search_input.onchange = function (event) {
 
 /**
  * Rotates pages in the document.
- * @param {number} rotation - The rotation angle in degrees
+ * @param {number} rotation - The rotation angle in degrees (0, 90, 180, 270)
  */
 function rotate_pages(rotation) {
+  if (!page_list) return;
+  
+  // Get current visible page to maintain position
+  let visiblePage = find_visible_page();
+  
   for (const page of page_list) {
-    console.log(page);
+    // Apply rotation relative to current rotation
+    const newRotation = (page.rotation + rotation) % 360;
+    page.setRotation(newRotation);
   }
+  
+  // Scroll back to the previously visible page
+  if (visiblePage >= 0 && visiblePage < page_list.length) {
+    page_list[visiblePage].rootNode.scrollIntoView();
+  }
+  
+  // Update the view to reflect changes
+  queue_update_view();
 }
 
 /**

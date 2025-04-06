@@ -51,9 +51,13 @@ var document_map = {};
 methods.openDocumentFromBuffer = function (buffer, magic) {
   let doc_id = document_next_id++;
   document_map[doc_id] = mupdf.Document.openDocument(buffer, magic);
+
+ 
+
   return doc_id;
 };
 
+/**
 /**
  * Closes and destroys a document
  * @param {number} doc_id - The document ID to close
@@ -211,14 +215,28 @@ methods.getPageAnnotations = function (doc_id, page_number, dpi) {
  * @param {number} doc_id - The document ID
  * @param {number} page_number - The page number (0-based)
  * @param {number} dpi - The dots per inch for rendering
+ * @param {number} rotation - The rotation angle in degrees (0, 90, 180, 270)
  * @returns {ImageData} The rendered page as an ImageData object
  */
-methods.drawPageAsPixmap = function (doc_id, page_number, dpi) {
-  const doc_to_screen = mupdf.Matrix.scale(dpi / 72, dpi / 72);
+methods.drawPageAsPixmap = function (doc_id, page_number, dpi, rotation = 0) {
+  // Create scale matrix
+  const scaleMatrix = mupdf.Matrix.scale(dpi / 72, dpi / 72);
+  
+  // Create rotation matrix if needed
+  let rotationMatrix = mupdf.Matrix.identity;
+  if (rotation !== 0) {
+    rotationMatrix = mupdf.Matrix.rotate(rotation);
+  }
+  
+  // Combine transformations: first rotate, then scale
+  const doc_to_screen = mupdf.Matrix.concat(scaleMatrix, rotationMatrix);
 
   let doc = document_map[doc_id];
   let page = doc.loadPage(page_number);
-  let bbox = mupdf.Rect.transform(page.getBounds(), doc_to_screen);
+  let bounds = page.getBounds();
+  
+  // For rotated pages, we need to transform the bounds correctly
+  let bbox = mupdf.Rect.transform(bounds, doc_to_screen);
 
   let pixmap = new mupdf.Pixmap(mupdf.ColorSpace.DeviceRGB, bbox, true);
   pixmap.clear(255);
