@@ -19,13 +19,23 @@ const watermarkConfig = {
      * The text to display as watermark
      * @type {string}
      */
-    text: "CONFIDENTIAL DATA",
+    text: "The file is only \n for development preview",
+
+    /**
+     * Font family of the watermark text
+     * @type {string}
+     */
+
+    /**
+     * Font family of the watermark text
+     * @type {string}
+     */
     
     /**
      * Opacity of the watermark (0-1)
      * @type {number}
      */
-    opacity: 0.5,
+    opacity: 0.3,
     
     /**
      * Font size of the watermark text
@@ -60,3 +70,24 @@ const watermarkConfig = {
 
 // Export the configuration
 export { watermarkConfig };
+
+
+/**
+ * user access
+ * watermark text
+ * watermark override{
+ * showWatermark?,
+ * watermarkOpacity?,
+ * watermarkRepeat?,
+ * watermarkFontSize?
+ * watermarkRotation?,
+ * watermarkColor?,
+ * watermarkRepeatSpacing?
+ * }
+ * File
+ * Allow print
+ * print Override{
+ * includeWatermark?,
+ * }
+ * 
+ */
