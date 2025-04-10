@@ -380,6 +380,15 @@ div.text *::selection {
   background: hsla(220, 100%, 50%, 0.2);
 }
 
+/* Style for when text copying is disabled */
+div.text.no-copy {
+  cursor: default;
+}
+
+div.text.no-copy *::selection {
+  background: transparent;
+}
+
 div.link a:hover {
   border: 1px dotted blue;
 }

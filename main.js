@@ -81,6 +81,10 @@ function set_delete(set, item) {
   }
 }
 
+// Global Variables
+
+let globalConfig;
+
 // LOADING AND ERROR MESSAGES
 
 /**
@@ -270,12 +274,12 @@ class PageView {
     // We use the `foo | 0` notation to round down floating point numbers to integers.
     // This matches the conversion done in `mupdf.js` when `Pixmap.withBbox`
     // calls `libmupdf._wasm_new_pixmap_with_bbox`.
-    
+
     // For 90 and 270 degree rotations, swap width and height
     const isRotated = this.rotation === 90 || this.rotation === 270;
     const width = isRotated ? this.size.height : this.size.width;
     const height = isRotated ? this.size.width : this.size.height;
-    
+
     this.rootNode.style.width = (((width * this.zoom) / 72) | 0) + "px";
     this.rootNode.style.height = (((height * this.zoom) / 72) | 0) + "px";
     this.canvasNode.style.width = (((width * this.zoom) / 72) | 0) + "px";
@@ -303,7 +307,7 @@ class PageView {
     if (angle % 90 !== 0) {
       angle = Math.round(angle / 90) * 90;
     }
-    
+
     if (this.rotation !== angle) {
       this.rotation = angle;
       // Force re-render with new rotation
@@ -364,7 +368,6 @@ class PageView {
    * @returns {Promise} A promise that resolves when the page is ready to display
    */
   async _show() {
-    
     if (!this.loadPromise) this.loadPromise = this._load();
     await this.loadPromise;
 
@@ -428,14 +431,14 @@ class PageView {
       this.canvasNode.width = imageData.width;
       this.canvasNode.height = imageData.height;
       this.canvasCtx.putImageData(imageData, 0, 0);
-      
+
       // Draw watermark directly on the canvas
       // Import the drawWatermark function dynamically to avoid circular dependencies
-      const { drawWatermark } = await import('./watermark.js');
+      const { drawWatermark } = await import("./watermark.js");
       drawWatermark(
-        this.canvasCtx, 
-        this.canvasNode.width, 
-        this.canvasNode.height, 
+        this.canvasCtx,
+        this.canvasNode.width,
+        this.canvasNode.height,
         zoom / 72
       );
     } else {
@@ -451,6 +454,15 @@ class PageView {
   _showText() {
     this.textNode.zoom = this.zoom;
     this.textNode.replaceChildren();
+
+    // Check if text copying is allowed based on global configuration
+    const canCopyText = globalConfig.userAccess.canCopyText;
+
+    // // Apply user-select style to the text container if copying is not allowed
+    if (!canCopyText) {
+      this.textNode.style.userSelect = "none";
+      this.textNode.style.webkitUserSelect = "none";
+    }
 
     let nodes = [];
     let pdf_w = [];
@@ -501,6 +513,7 @@ class PageView {
     for (let link of this.linkData) {
       let a = document.createElement("a");
       a.href = link.href;
+      a.target = "_blank"
       a.style.left = link.x * scale + "px";
       a.style.top = link.y * scale + "px";
       a.style.width = link.w * scale + "px";
@@ -675,12 +688,21 @@ window.addEventListener(
 /**
  * Handles keyboard shortcuts.
  */
-window.addEventListener("keydown", function (event) {
+window.addEventListener("keydown", async function (event) {
   // Intercept and override some keyboard shortcuts.
   // We must override the Ctl-PLUS and Ctl-MINUS shortcuts that change browser zoom.
   // Our page rendering requires a 1-to-1 pixel scale.
   if (event.ctrlKey || event.metaKey) {
     switch (event.keyCode) {
+      // 'P' - Print control based on access data
+      case 80:
+        // Check if printing is allowed based on access data
+        if (!globalConfig.userAccess.canPrint) {
+          event.preventDefault();
+          return false;
+        }
+        // If printing is allowed, let the browser handle it
+        break;
       // '=' / '+' on various keyboards
       case 61:
       case 107:
@@ -777,21 +799,21 @@ search_input.onchange = function (event) {
  */
 function rotate_pages(rotation) {
   if (!page_list) return;
-  
+
   // Get current visible page to maintain position
   let visiblePage = find_visible_page();
-  
+
   for (const page of page_list) {
     // Apply rotation relative to current rotation
     const newRotation = (page.rotation + rotation) % 360;
     page.setRotation(newRotation);
   }
-  
+
   // Scroll back to the previously visible page
   if (visiblePage >= 0 && visiblePage < page_list.length) {
     page_list[visiblePage].rootNode.scrollIntoView();
   }
-  
+
   // Update the view to reflect changes
   queue_update_view();
 }
@@ -993,6 +1015,39 @@ async function open_document_from_buffer(buffer, magic, title) {
 }
 
 /**
+ * Extracts the filename from a URL path
+ * @param {string} url - The URL to extract the filename from
+ * @returns {string} The extracted filename or the original URL if no filename could be extracted
+ */
+function extractFilenameFromUrl(url) {
+  try {
+    // Try to extract filename from the URL path
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname;
+    const segments = pathname.split("/");
+    const filename = segments[segments.length - 1];
+
+    // If we have a filename with extension, return it
+    if (filename && filename.includes(".")) {
+      return decodeURIComponent(filename);
+    }
+
+    // If no valid filename found in the path, return the original URL
+    return url;
+  } catch (e) {
+    // If URL parsing fails, try a simpler approach
+    const segments = url.split("/");
+    const potentialFilename = segments[segments.length - 1];
+
+    if (potentialFilename && potentialFilename.includes(".")) {
+      return decodeURIComponent(potentialFilename);
+    }
+
+    return url;
+  }
+}
+
+/**
  * Opens a document from a URL.
  * @param {string} path - The URL to fetch the document from
  * @returns {Promise} A promise that resolves when the document is loaded
@@ -1000,7 +1055,8 @@ async function open_document_from_buffer(buffer, magic, title) {
 async function open_document_from_url(path) {
   close_document();
   try {
-    show_message("Loading " + path);
+    const filename = extractFilenameFromUrl(path);
+    show_message("Loading " + filename);
     let response = await fetch(path);
     if (!response.ok) throw new Error("Could not fetch document.");
     await open_document_from_buffer(await response.arrayBuffer(), path, path);
@@ -1033,11 +1089,54 @@ async function open_document_from_file(file) {
 }
 
 /**
+ * Prevents copy events when text copying is not allowed
+ */
+function preventCopy(event) {
+  if (!globalConfig.userAccess.canCopyText) {
+    event.preventDefault();
+    return false;
+  }
+}
+
+/**
  * Main entry point for the application.
  * Initializes the viewer and loads a document if specified in URL parameters.
  */
-function main() {
+async function main() {
+  // Add copy event listener to prevent copying when not allowed
+  document.addEventListener("copy", preventCopy);
+
+  const { SecureChildTab } = await import("./utils/childTabManager.js");
+  const secureTab = new SecureChildTab();
+
+  //Setup for the incoming Credentials
+  secureTab.on("credentials", (data) => {
+    console.warn("got creds");
+    launchViewer(data);
+  });
+
+  initTab(secureTab);
+}
+
+async function initTab(secureChildTab) {
+  try {
+    const initData = await new Promise((resolve) => {
+      window.addEventListener("message", (event) => {
+        if (event.data.type === "init") {
+          resolve(event.data);
+        }
+      });
+    });
+    await secureChildTab.init(initData);
+    window._secureTabDebug.enable();
+    secureChildTab.emit("ready", null);
+  } catch (err) {}
+}
+
+async function launchViewer(credentials) {
+  const { updateGlobalConfig } = await import("./globalConfig.js");
+  const config = updateGlobalConfig(credentials);
   clear_message();
-  let params = new URLSearchParams(window.location.search);
-  if (params.has("file")) open_document_from_url(params.get("file"));
+  globalConfig = config;
+  open_document_from_url(config.fileAccess.url);
 }
