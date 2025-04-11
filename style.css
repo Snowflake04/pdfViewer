@@ -4,7 +4,9 @@
   --primary-dark: #1d4ed8;
   --secondary: #64748b;
   --background: #f8fafc;
+  --background-rgb: 248, 250, 252;
   --surface: #ffffff;
+  --surface-rgb: 255, 255, 255;
   --text: #1e293b;
   --border: #e2e8f0;
   --shadow: rgba(0, 0, 0, 0.1);
@@ -23,7 +25,9 @@
     --primary-dark: #2563eb;
     --secondary: #94a3b8;
     --background: #0f172a;
+    --background-rgb: 15, 23, 42;
     --surface: #1e293b;
+    --surface-rgb: 30, 41, 59;
     --text: #f1f5f9;
     --border: #334155;
     --shadow: rgba(0, 0, 0, 0.3);
@@ -330,6 +334,23 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: 1000;
+  background-color: rgba(var(--background-rgb), 0.9);
+  backdrop-filter: blur(2px);
+  opacity: 1;
+  transition: opacity 0.3s ease-in-out;
+}
+
+#message i.fa-spinner {
+  font-size: 3rem;
+  margin-bottom: 16px;
+  color: var(--primary);
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .document-message i {

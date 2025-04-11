@@ -90,12 +90,28 @@ let globalConfig;
 /**
  * Displays a message to the user in the message element.
  * @param {string} msg - The message to display
+ * @param {boolean} showLoader - Whether to show a loading animation
  */
-function show_message(msg) {
+function show_message(msg, showLoader = false) {
   const container = document.getElementById("message");
   //incase the message container was hidden
   container.style.display = "block";
-  container.textContent = msg;
+  container.innerHTML = "";
+  
+  if (showLoader) {
+    // Add loading icon
+    const loaderIcon = document.createElement("i");
+    loaderIcon.className = "fas fa-spinner";
+    container.appendChild(loaderIcon);
+    
+    // Add a line break
+    container.appendChild(document.createElement("br"));
+  }
+  
+  // Add the message text
+  const textNode = document.createElement("span");
+  textNode.textContent = msg;
+  container.appendChild(textNode);
 }
 
 /**
@@ -513,7 +529,6 @@ class PageView {
     for (let link of this.linkData) {
       let a = document.createElement("a");
       a.href = link.href;
-      a.target = "_blank"
       a.style.left = link.x * scale + "px";
       a.style.top = link.y * scale + "px";
       a.style.width = link.w * scale + "px";
@@ -666,6 +681,39 @@ function zoom_to(new_zoom) {
   queue_update_view();
 }
 
+async function handlePrint() {
+  try {
+    // Show loading message with animation
+    show_message("Preparing document for printing...", true);
+    
+    const pdfUrl = globalConfig.fileAccess.url;
+    const response = await fetch(pdfUrl);
+    const pdfData = await response.arrayBuffer();
+    const pdfBlob = new Blob([pdfData], { type: "application/pdf" });
+    const blobUrl = URL.createObjectURL(pdfBlob);
+
+    const printIframe = document.createElement("iframe");
+    printIframe.style.display = "none";
+    document.body.appendChild(printIframe);
+
+    printIframe.src = blobUrl;
+
+    printIframe.onload = () => {
+      try {
+        // Clear the loading message before printing
+        clear_message();
+        printIframe.contentWindow.print();
+      } catch (error) {
+        console.error("Print error:", error);
+        show_message("Error printing document: " + error.message);
+      }
+    };
+  } catch (error) {
+    console.error("Error preparing PDF for print:", error);
+    show_message("Error preparing document for print: " + error.message);
+  }
+}
+
 // KEY BINDINGS & MOUSE WHEEL ZOOM
 
 /**
@@ -696,10 +744,12 @@ window.addEventListener("keydown", async function (event) {
     switch (event.keyCode) {
       // 'P' - Print control based on access data
       case 80:
+        event.preventDefault();
         // Check if printing is allowed based on access data
         if (!globalConfig.userAccess.canPrint) {
-          event.preventDefault();
           return false;
+        } else {
+          handlePrint();
         }
         // If printing is allowed, let the browser handle it
         break;
@@ -1105,6 +1155,7 @@ function preventCopy(event) {
 async function main() {
   // Add copy event listener to prevent copying when not allowed
   document.addEventListener("copy", preventCopy);
+  document.addEventListener("contextmenu", (e) => e.preventDefault());
 
   const { SecureChildTab } = await import("./utils/childTabManager.js");
   const secureTab = new SecureChildTab();
